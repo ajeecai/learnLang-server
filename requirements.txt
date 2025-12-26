@@ -1,0 +1,17 @@
+# https://download.pytorch.org/whl/cu121/torch
+torch==2.1.0+cu121
+torchvision==0.16.0+cu121
+torchaudio==2.1.0+cu121
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+fastapi==0.115.0 
+uvicorn==0.30.6 
+python-jose[cryptography]==3.3.0 
+passlib[bcrypt]==1.7.4 
+python-multipart==0.0.9 
+mysql-connector-python==9.0.0 
+faster-whisper==1.0.3 
+coqui-tts==0.25.3
+python-dotenv==1.0.1 
+scipy==1.14.1 
+numpy==1.26.4

@@ -1,0 +1,134 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: stts-api
+    container_name: stts-api
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+          "status=$$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/login -H 'Content-Type:application/x-www-form-urlencoded' -d \"username=$$TEST_NAME&password=$$(python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))' $$TEST_PASSWORD)\"); [ \"$${status}\" = \"200\" ]"
+      ]
+      interval: 3600s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+    build:
+      context: .
+      target: stts-api
+      args:
+          HTTP_PROXY: ${HTTP_PROXY}
+          LLM_API_URL: ${LLM_API_URL}
+          LLM_API_KEY: ${LLM_API_KEY}
+          LLM_MODEL: ${LLM_MODEL}
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]      
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - TEST_NAME=${TEST_NAME}
+      - TEST_PASSWORD=${TEST_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MODEL_BASE_DIR=${MODEL_BASE_DIR}
+      - DEVICE=${DEVICE}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${MODEL_BASE_DIR}:/whisper_models:ro
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  nginx:
+    image: stts-nginx
+    container_name: stts-nginx
+    healthcheck:
+      test: ["CMD", "curl", "-s", "https://$DOMAIN_NAME/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s    
+    logging: *default-logging
+    build:
+      context: .
+      target: stts-nginx
+      args:
+        - DOMAIN_NAME=${DOMAIN_NAME}
+    ports:
+      - "9443:443"
+    environment:
+      - SSL_CERT_PATH=/cert/fullchain.cer
+      - SSL_KEY_PATH=/cert/fullchain.key
+      - DOMAIN_NAME=${DOMAIN_NAME}
+    volumes:
+      - ${SSL_CERT_PATH}:/cert:ro
+    depends_on:
+      - api
+    networks:
+      - app-network
+
+  db:
+    image: stts-mysql
+    container_name: stts-mysql
+    build:
+      context: .
+      target: stts-mysql
+      args:
+        - TEST_NAME=${TEST_NAME}
+        - TEST_PASSWORD=${TEST_PASSWORD}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s    
+    environment:
+      - TEST_NAME=${TEST_NAME}
+      - TEST_PASSWORD=${TEST_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - DOCKER_DATA_BASE=${DOCKER_DATA_BASE}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: stts-redis
+    # 不暴露端口到宿主机，仅 Docker 网络内可访问
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
+volumes:
+  mysql-data:
+  redis-data:
+
+networks:
+  app-network:
+    driver: bridge
