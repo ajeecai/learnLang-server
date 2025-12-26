@@ -44,6 +44,7 @@ services:
       - MODEL_BASE_DIR=${MODEL_BASE_DIR}
       - DEVICE=${DEVICE}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_TOKEN_EXPIRE_MINUTES=${JWT_TOKEN_EXPIRE_MINUTES}
     ports:
       - "8000:8000"
     volumes:
