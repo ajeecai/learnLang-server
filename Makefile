@@ -27,6 +27,7 @@ help:
 	@echo "  clean_db # Clean up db volumes only"
 	@echo "  restart  # Rebuild and restart services"
 	@echo "  download # download llm model"
+	@echo "  watch    # Run services with hot reload (Docker Compose Watch)"
 
 # Build and start services in detached mode
 build: stop
@@ -37,6 +38,11 @@ build: stop
 .PHONY: start 
 start: 
 	$(COMPOSE) up -d
+
+# Run services with file watching enabled
+.PHONY: watch
+watch:
+	$(COMPOSE) up --watch
 
 # Test API endpoints
 .PHONY: test

@@ -33,7 +33,21 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]      
+              capabilities: [gpu]
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - .git/
+            - __pycache__/
+            - .idea/
+            - .vscode/
+            - .env
+        - action: rebuild
+          path: requirements.txt
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-WARNING}
       - TEST_NAME=${TEST_NAME}
