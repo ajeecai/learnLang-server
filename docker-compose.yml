@@ -59,6 +59,9 @@ services:
       - DEVICE=${DEVICE}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - JWT_TOKEN_EXPIRE_MINUTES=${JWT_TOKEN_EXPIRE_MINUTES}
+      - MAX_TOKENS_ONCE=${MAX_TOKENS_ONCE}
+      - MAX_TOKENS_TOTAL=${MAX_TOKENS_TOTAL}
+      - LLM_MODEL=${LLM_MODEL}
     ports:
       - "8000:8000"
     volumes:

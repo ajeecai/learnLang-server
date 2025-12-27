@@ -14,9 +14,8 @@ LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL")
 HTTP_PROXY = os.getenv("HTTP_PROXY")
 
-MAX_TOKENS_ONCE = 500
-MAX_TOKENS_TOTAL = 1000
-# MAX_TOKENS_TOTAL = 12000
+MAX_TOKENS_ONCE = int(os.getenv("MAX_TOKENS_ONCE", 3000))
+MAX_TOKENS_TOTAL = int(os.getenv("MAX_TOKENS_TOTAL", 30000))
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -75,38 +74,45 @@ class ChatSession:
         :param my_words: 用户输入
         :return: LLM 回复
         """
-        async with aiohttp.ClientSession() as session:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {LLM_API_KEY}",
-            }
-            payload = {
-                "model": LLM_MODEL,
-                "messages": self.get_messages()
-                + [{"role": "user", "content": my_words}],
-                # 节省token，不带上下文
-                # "messages": [{"role": "assistant", "content": system_prompt}] + [{"role": "user", "content": my_words}],
-                "max_tokens": MAX_TOKENS_ONCE,
-            }
-            # logger.info(f"header {headers}, payload {payload}")
-            try:
-                async with session.post(
-                    LLM_API_URL, headers=headers, json=payload, proxy=HTTP_PROXY
-                ) as response:
-                    if response.status != 200:
-                        logger.error(
-                            f"LLM API request failed: {response.status} - {response.reason}"
-                        )
-                        raise HTTPException(
-                            status_code=500, detail="Failed to communicate with LLM"
-                        )
-                    data = await response.json()
-                    # logger.info(f"response is {response}")
-                    content = data["choices"][0]["message"]["content"]
-                    return content
-            except aiohttp.ClientError as e:
-                logger.error(f"LLM API error: {str(e)}")
-                raise HTTPException(status_code=500, detail="LLM API error")
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {LLM_API_KEY}",
+        }
+        payload = {
+            "model": LLM_MODEL,
+            "messages": self.get_messages() + [{"role": "user", "content": my_words}],
+            # 节省token，不带上下文
+            # "messages": [{"role": "assistant", "content": system_prompt}] + [{"role": "user", "content": my_words}],
+            "max_tokens": MAX_TOKENS_ONCE,
+        }
+
+        manager = ChatSessionManager.get_instance()
+        # 优先使用全局 session，如果没有则创建临时 session
+        if getattr(manager, "http_session", None):
+            return await self._send_llm_request(manager.http_session, headers, payload)
+        else:
+            async with aiohttp.ClientSession() as session:
+                return await self._send_llm_request(session, headers, payload)
+
+    async def _send_llm_request(self, session, headers, payload):
+        try:
+            async with session.post(
+                LLM_API_URL, headers=headers, json=payload, proxy=HTTP_PROXY
+            ) as response:
+                if response.status != 200:
+                    logger.error(
+                        f"LLM API request failed: {response.status} - {response.reason}"
+                    )
+                    raise HTTPException(
+                        status_code=500, detail="Failed to communicate with LLM"
+                    )
+                data = await response.json()
+                # logger.info(f"response is {response}")
+                content = data["choices"][0]["message"]["content"]
+                return content
+        except aiohttp.ClientError as e:
+            logger.error(f"LLM API error: {str(e)}")
+            raise HTTPException(status_code=500, detail="LLM API error")
 
     # TODO: for simplicity, don't consider multiple chat with same username
     async def add_message(self, role: str, content: str):
@@ -211,6 +217,7 @@ class ChatSessionManager:
         if cls._instance is None:
             cls._instance = super(ChatSessionManager, cls).__new__(cls)
             cls._instance.sessions = {}
+            cls._instance.http_session = None
             logger.info("ChatSessionManager singleton initialized")
         return cls._instance
 

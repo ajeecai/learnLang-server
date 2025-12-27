@@ -1,10 +1,12 @@
 from faster_whisper import WhisperModel
 import os, asyncio
+import logging
 
+logger = logging.getLogger(__name__)
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 device = os.getenv("DEVICE", "cpu")
 
-print(f"device in transcribe : " + device)
+logger.info(f"device in transcribe : {device}")
 
 model_path = os.path.join("/whisper_models", "faster-whisper-large-v3")
 model = WhisperModel(model_path, device=device, compute_type="int8")

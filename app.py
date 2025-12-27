@@ -8,6 +8,7 @@ from fastapi import (
     status,
     Form,
     WebSocket,
+    Request,
 )
 
 from auth import *
@@ -21,8 +22,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 # 日志和异步处理
 import logging
 import os
+import aiohttp
 
 # 科学计算和音频处理
+from contextlib import asynccontextmanager
 import numpy as np
 import webrtcvad
 
@@ -32,6 +35,7 @@ from utils.synthesize import synthesize_text
 from websocket.data_handlers import WsDataHandlerRegistry
 from websocket.data_handler_config import ws_configure_data_handlers
 from services.chat_sessions import ChatSessionManager
+from services.word_generator import generate_words_service
 
 # # 设置日志级别（默认 INFO
 # log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
@@ -56,8 +60,20 @@ log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 setup_logging(log_level)
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: 创建全局 ClientSession
+    session = aiohttp.ClientSession()
+    app.state.http_session = session
+    ChatSessionManager.get_instance().http_session = session
+    yield
+    # Shutdown: 关闭 ClientSession
+    await session.close()
+
+
 # FastAPI 实例
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 ws_data_handler_registry = WsDataHandlerRegistry()
 ws_configure_data_handlers(ws_data_handler_registry)
 chat_session_manager = ChatSessionManager.get_instance()
@@ -87,13 +103,15 @@ async def login(
     access_token = create_access_token(data={"sub": user["username"]})
     return {"access_token": access_token, "token_type": "bearer"}
 
-
+# some of the APIs are called only by curl for debug,
+# not called by app, like transcribe, synthesize
 # 语音转文字端点（需要认证）
 @app.post("/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
+    logger.info(f"transcribe_audio called by user: {current_user['username']}")
     # 使用 transcribe.py 的 transcribe_file 函数
     transcription = await transcribe_file(file.file)
 
@@ -108,6 +126,7 @@ async def synthesize_speech(
     text: str = Form(...),
     current_user: dict = Depends(get_current_user),
 ):
+    logger.info(f"synthesize_speech called by user: {current_user['username']}")
     audio_stream = await synthesize_text(text)
     return StreamingResponse(audio_stream, media_type="audio/wav")
 
@@ -119,6 +138,7 @@ async def conversation_with_llm(
     current_user: dict = Depends(get_current_user),
 ):
     # logger.info(f'current_user {current_user}')
+    logger.info(f"conversation_with_llm called by user: {current_user['username']}")
     transcription = await transcribe_file(file.file)
     chat_session = await chat_session_manager.get_session(current_user["username"])
     await chat_session.add_message("user", transcription)
@@ -127,6 +147,29 @@ async def conversation_with_llm(
     await chat_session.add_message("assistant", response)
     audio_stream = await synthesize_text(response)
     return StreamingResponse(audio_stream, media_type="audio/wav")
+
+
+# LLM Proxy (需要认证)
+@app.post("/gen-sentences-combo")
+async def generate_words(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        payload = await request.json()
+    except Exception:
+        logger.error(f"Not a valid json payload")
+        payload = {}
+    logger.info(f"payload1 is {payload}")
+
+    if isinstance(payload, dict):
+        if "words" in payload:
+            payload = payload["words"]
+
+    logger.info(f"payload2 is {payload}")
+    return await generate_words_service(
+        payload, current_user["username"], request.app.state.http_session
+    )
 
 
 @app.websocket("/ws")

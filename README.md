@@ -1,6 +1,6 @@
 # learnLang Server
 
-The backend server to support expo go app [learnLang](../learnLang).
+The backend server to support expo go app [learnLang](https://github.com/ajeecai/learnLang).
 
 ## Configuration
 
