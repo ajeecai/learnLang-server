@@ -128,7 +128,7 @@ async def synthesize_speech(
 ):
     logger.info(f"synthesize_speech called by user: {current_user['username']}")
     audio_stream = await synthesize_text(text)
-    return StreamingResponse(audio_stream, media_type="audio/wav")
+    return StreamingResponse(audio_stream, media_type="audio/mpeg")
 
 
 # chat（需要认证）
@@ -146,7 +146,7 @@ async def conversation_with_llm(
     logger.info(f"response from LLM is: {response}")
     await chat_session.add_message("assistant", response)
     audio_stream = await synthesize_text(response)
-    return StreamingResponse(audio_stream, media_type="audio/wav")
+    return StreamingResponse(audio_stream, media_type="audio/mpeg")
 
 
 # LLM Proxy (需要认证)
@@ -160,13 +160,12 @@ async def generate_words(
     except Exception:
         logger.error(f"Not a valid json payload")
         payload = {}
-    logger.info(f"payload1 is {payload}")
 
     if isinstance(payload, dict):
         if "words" in payload:
             payload = payload["words"]
 
-    logger.info(f"payload2 is {payload}")
+    # logger.info(f"payload is {payload}")
     return await generate_words_service(
         payload, current_user["username"], request.app.state.http_session
     )

@@ -23,4 +23,5 @@ Use `make test` to test the API enpoints
 
 ## how to run
 
-`docker compose up`
+`docker compose up -d`
+For development, `docker compose up --watch`

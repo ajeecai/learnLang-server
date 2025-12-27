@@ -1,12 +1,15 @@
 import os
 import asyncio
+import logging
 import soundfile as sf
 from io import BytesIO
 from TTS.api import Synthesizer
 from scipy.signal import butter, lfilter
 
+logger = logging.getLogger(__name__)
+
 device = os.getenv("DEVICE", "cpu")
-print(f'device in synthesize : {device}')
+logger.info(f"device in synthesize : {device}")
 
 def lowpass_filter(wav, sr, cutoff=5000, order=6):
     nyq = 0.5 * sr
@@ -92,10 +95,11 @@ async def synthesize_text(text: str) -> bytes:
 
     wav = await loop.run_in_executor(None, blocking_synthesize)
 
-    # Convert NumPy array to WAV bytes, if None, return empty stream
+    # Convert NumPy array to MP3 bytes, if None, return empty stream
     wav_buffer = BytesIO()
     if wav is not None:
-        sf.write(wav_buffer, wav, synthesizer.output_sample_rate, format="WAV")
+        sf.write(wav_buffer, wav, synthesizer.output_sample_rate, format="MP3")
+        logger.info(f"Synthesized audio size: {wav_buffer.tell()} bytes")
         wav_buffer.seek(0)
 
     return wav_buffer

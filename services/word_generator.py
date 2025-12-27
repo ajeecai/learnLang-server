@@ -73,7 +73,7 @@ async def generate_words_service(
                 logger.error(f"LLM API Error: {response.status} - {error_text}")
                 raise HTTPException(status_code=response.status, detail=error_text)
             data = await response.json()
-            logger.info(f"LLM response: {data}")
+            # logger.info(f"LLM response: {data}")
             try:
                 return json.loads(data["choices"][0]["message"]["content"])
             except (KeyError, IndexError, TypeError):
