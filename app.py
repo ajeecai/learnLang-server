@@ -20,6 +20,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 # 日志和异步处理
 import logging
+import os
 
 # 科学计算和音频处理
 import numpy as np
@@ -28,8 +29,8 @@ import webrtcvad
 # 自定义功能模块
 from utils.transcribe import transcribe_file
 from utils.synthesize import synthesize_text
-from services.data_handlers import DataHandlerRegistry
-from services.handler_config import configure_handlers
+from websocket.data_handlers import WsDataHandlerRegistry
+from websocket.data_handler_config import ws_configure_data_handlers
 from services.chat_sessions import ChatSessionManager
 
 # # 设置日志级别（默认 INFO
@@ -51,13 +52,14 @@ def setup_logging(log_level="INFO"):
     logging.getLogger("mysql.connector").setLevel(logging.WARNING)
 
 
-setup_logging()
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+setup_logging(log_level)
 logger = logging.getLogger(__name__)
 
 # FastAPI 实例
 app = FastAPI()
-data_handler_registry = DataHandlerRegistry()
-configure_handlers(data_handler_registry)
+ws_data_handler_registry = WsDataHandlerRegistry()
+ws_configure_data_handlers(ws_data_handler_registry)
 chat_session_manager = ChatSessionManager.get_instance()
 
 # Initialize VAD
@@ -111,8 +113,8 @@ async def synthesize_speech(
 
 
 # chat（需要认证）
-@app.post("/chat")
-async def chat_with_llm(
+@app.post("/conversation")
+async def conversation_with_llm(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
@@ -120,7 +122,7 @@ async def chat_with_llm(
     transcription = await transcribe_file(file.file)
     chat_session = await chat_session_manager.get_session(current_user["username"])
     await chat_session.add_message("user", transcription)
-    response = await chat_session.chat_with_llm(transcription)
+    response = await chat_session.conversation_with_llm(transcription)
     logger.info(f"response from LLM is: {response}")
     await chat_session.add_message("assistant", response)
     audio_stream = await synthesize_text(response)
@@ -129,4 +131,4 @@ async def chat_with_llm(
 
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
-    await websocket_endpoint(websocket, data_handler_registry)
+    await websocket_endpoint(websocket, ws_data_handler_registry)

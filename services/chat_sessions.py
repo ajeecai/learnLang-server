@@ -69,7 +69,7 @@ class ChatSession:
             cls._instance = cls()
         return cls._instance
 
-    async def chat_with_llm(self, my_words: str) -> str:
+    async def conversation_with_llm(self, my_words: str) -> str:
         """
         与 LLM 交互，发送用户消息并获取回复。
         :param my_words: 用户输入

@@ -14,7 +14,7 @@ async def handle_conversation(
     username: str,
 ) -> bytes:
     """
-    处理 WebSocket 的 conversation 消息（TYPE_DATA, msg=conversation）。
+    处理 WebSocket 的 conversation 消息（TYPE_DATA, data_type=conversation）。
     执行音频转录、LLM 交互和语音合成，返回二进制响应。
     """
     logger.info("It is conversation audio from client")
@@ -27,7 +27,7 @@ async def handle_conversation(
     transcription = await transcribe_file(audio_file)
     chat_session = await chat_session_manager.get_session(username)
     await chat_session.add_message("user", transcription)
-    response = await chat_session.chat_with_llm(transcription)
+    response = await chat_session.conversation_with_llm(transcription)
     logger.info(f"response from LLM is: {response}")
 
     reply_text = response
